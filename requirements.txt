@@ -1,0 +1,4 @@
+selenium==4.15.2
+schedule==1.2.0
+pytz==2023.3
+webdriver-manager==4.0.1 
