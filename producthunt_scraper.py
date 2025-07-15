@@ -43,6 +43,7 @@ class ProductHuntScraper:
     def setup_driver(self, headless=True):
         """Setup Chrome WebDriver with appropriate options using undetected-chromedriver"""
         chrome_options = uc.ChromeOptions()
+        chrome_options.binary_location = '/usr/bin/chromium-browser'
         if headless:
             chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--no-sandbox")
