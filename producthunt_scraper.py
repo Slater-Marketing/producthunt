@@ -307,6 +307,7 @@ class ProductHuntScraper:
         ]
         try:
             chrome_options = uc.ChromeOptions()
+            chrome_options.binary_location = '/usr/bin/chromium-browser'
             chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
@@ -375,6 +376,7 @@ class ProductHuntScraper:
         ]
         try:
             chrome_options = uc.ChromeOptions()
+            chrome_options.binary_location = '/usr/bin/chromium-browser'
             chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
