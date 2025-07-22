@@ -58,7 +58,7 @@ class ProductHuntScraper:
         chrome_options.add_argument("--disable-web-security")
         chrome_options.add_argument("--disable-features=VizDisplayCompositor")
         chrome_options.add_argument("--memory-pressure-off")
-        chrome_options.add_argument("--max_old_space_size=512")  # Limit memory usage
+        chrome_options.add_argument("--max_old_space_size=1024")  # 1GB for 2GB server
         
         try:
             self.driver = uc.Chrome(options=chrome_options, headless=headless)
@@ -179,7 +179,7 @@ class ProductHuntScraper:
                     return None
 
             # Process products in batches to avoid memory issues on server
-            batch_size = 20  # Process 20 products at a time
+            batch_size = 30  # Process 30 products at a time (2GB server)
             results = []
             webhook_url = "https://services.leadconnectorhq.com/hooks/knCxBYvGSI3aHQOSBd35/webhook-trigger/28e182ff-acc2-4d86-8ca6-e10990c103ee"
             
@@ -258,7 +258,7 @@ class ProductHuntScraper:
                     products_before = current_products
                 
                 # Stop if we've loaded enough products or hit max attempts
-                if current_products > 200:  # Increased limit for server
+                if current_products > 300:  # Higher limit for 2GB server
                     self.logger.info(f"Loaded {current_products} products, stopping scroll")
                     break
                     
