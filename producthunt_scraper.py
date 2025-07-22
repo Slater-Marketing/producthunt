@@ -22,14 +22,6 @@ import requests
 
 class ProductHuntScraper:
     def __init__(self, headless=True):
-        # DECODO Proxy configuration
-        self.proxy_config = {
-            'host': 'gate.decodo.com',
-            'port': '10001',  # Use single port, DECODO handles rotation
-            'username': 'spggrg8ytx',
-            'password': 'g10LCwaeg3~Vex0eoU'
-        }
-        
         self.base_url = "https://www.producthunt.com"
         self.today_url = self.base_url  # Use homepage for today's products
         self.products = []
@@ -48,11 +40,6 @@ class ProductHuntScraper:
         )
         self.logger = logging.getLogger(__name__)
     
-    def get_proxy_url(self):
-        """Get the DECODO proxy URL - they handle rotation internally"""
-        proxy_url = f"http://{self.proxy_config['username']}:{self.proxy_config['password']}@{self.proxy_config['host']}:{self.proxy_config['port']}"
-        return proxy_url
-    
     def setup_driver(self, headless=True):
         """Setup Chrome WebDriver with appropriate options using undetected-chromedriver"""
         chrome_options = uc.ChromeOptions()
@@ -64,13 +51,9 @@ class ProductHuntScraper:
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
         
-        # Add proxy
-        proxy_url = self.get_proxy_url()
-        chrome_options.add_argument(f'--proxy-server={proxy_url}')
-        
         try:
             self.driver = uc.Chrome(options=chrome_options, headless=headless)
-            self.logger.info("Undetected Chrome WebDriver initialized successfully with proxy")
+            self.logger.info("Undetected Chrome WebDriver initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize undetected Chrome WebDriver: {e}")
             raise
@@ -310,9 +293,7 @@ class ProductHuntScraper:
             return None
     
     def _get_links_from_product_page_separate_driver(self, product_url):
-        """Open a new undetected Chrome WebDriver to visit the product's ProductHunt page and extract website, social, and email links."""
-        if not product_url:
-            return {"website_url": "", "ph_instagram": "", "ph_linkedin_company": "", "ph_linkedin_personal": "", "ph_x": "", "ph_facebook": "", "ph_email": ""}
+        """Open a new undetected Chrome WebDriver to visit the product page and extract website URL, social and email links."""
         result = {"website_url": "", "ph_instagram": "", "ph_linkedin_company": "", "ph_linkedin_personal": "", "ph_x": "", "ph_facebook": "", "ph_email": ""}
         # Social links to skip (ProductHunt's own)
         skip_socials = [
@@ -330,15 +311,11 @@ class ProductHuntScraper:
             chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
             
-            # Add proxy for this session
-            proxy_url = self.get_proxy_url()
-            chrome_options.add_argument(f'--proxy-server={proxy_url}')
-            
             driver = None
             try:
                 driver = uc.Chrome(options=chrome_options, headless=True)
                 driver.get(product_url)
-                time.sleep(random.uniform(10, 20))  # Longer delay with proxy
+                time.sleep(random.uniform(3, 8))  # Random delay
                 # Website URL
                 try:
                     website_btn = WebDriverWait(driver, 5).until(
@@ -403,15 +380,11 @@ class ProductHuntScraper:
             chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
             
-            # Add proxy for this session
-            proxy_url = self.get_proxy_url()
-            chrome_options.add_argument(f'--proxy-server={proxy_url}')
-            
             driver = None
             try:
                 driver = uc.Chrome(options=chrome_options, headless=True)
                 driver.get(website_url)
-                time.sleep(random.uniform(10, 20))  # Longer delay with proxy
+                time.sleep(random.uniform(3, 8))  # Random delay
                 all_links = driver.find_elements(By.CSS_SELECTOR, "a[href]")
                 for a in all_links:
                     href = a.get_attribute("href")
