@@ -22,12 +22,6 @@ import requests
 
 class ProductHuntScraper:
     def __init__(self, headless=True):
-        self.base_url = "https://www.producthunt.com"
-        self.today_url = self.base_url  # Use homepage for today's products
-        self.products = []
-        self.setup_logging()
-        self.setup_driver(headless)
-        
         # DECODO Proxy configuration
         self.proxy_config = {
             'host': 'gate.decodo.com',
@@ -35,6 +29,12 @@ class ProductHuntScraper:
             'username': 'spggrg8ytx',
             'password': 'g10LCwaeg3~Vex0eoU'
         }
+        
+        self.base_url = "https://www.producthunt.com"
+        self.today_url = self.base_url  # Use homepage for today's products
+        self.products = []
+        self.setup_logging()
+        self.setup_driver(headless)
     
     def setup_logging(self):
         """Setup logging configuration"""
