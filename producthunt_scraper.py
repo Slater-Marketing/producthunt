@@ -51,8 +51,20 @@ class ProductHuntScraper:
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
         
+        # Server optimization options
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-plugins")
+        chrome_options.add_argument("--disable-images")  # Don't load images to save memory
+        chrome_options.add_argument("--disable-web-security")
+        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+        chrome_options.add_argument("--memory-pressure-off")
+        chrome_options.add_argument("--max_old_space_size=512")  # Limit memory usage
+        
         try:
             self.driver = uc.Chrome(options=chrome_options, headless=headless)
+            # Set longer timeouts for server environments
+            self.driver.set_page_load_timeout(60)
+            self.driver.implicitly_wait(10)
             self.logger.info("Undetected Chrome WebDriver initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize undetected Chrome WebDriver: {e}")
@@ -166,33 +178,45 @@ class ProductHuntScraper:
                     self.logger.warning(f"Failed to extract product data: {e}")
                     return None
 
-            # Run the two-step scrape in parallel for all products
-            max_workers = 1  # Set to 1 for sequential processing
+            # Process products in batches to avoid memory issues on server
+            batch_size = 20  # Process 20 products at a time
             results = []
             webhook_url = "https://services.leadconnectorhq.com/hooks/knCxBYvGSI3aHQOSBd35/webhook-trigger/28e182ff-acc2-4d86-8ca6-e10990c103ee"
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_element = {executor.submit(scrape_product, el): el for el in product_elements}
-                for future in as_completed(future_to_element):
-                    data = future.result()
-                    if data:
-                        results.append(data)
-                        # Combine fields for webhook
-                        combined = dict(data)
-                        combined['instagram'] = self.combine_fields(data.get('ph_instagram'), data.get('site_instagram'))
-                        combined['linkedin_company'] = self.combine_fields(data.get('ph_linkedin_company'), data.get('site_linkedin_company'))
-                        combined['linkedin_personal'] = self.combine_fields(data.get('ph_linkedin_personal'), data.get('site_linkedin_personal'))
-                        combined['x'] = self.combine_fields(data.get('ph_x'), data.get('site_x'))
-                        combined['facebook'] = self.combine_fields(data.get('ph_facebook'), data.get('site_facebook'))
-                        combined['email'] = self.combine_fields(data.get('ph_email'), data.get('site_email'))
-                        # Send to webhook
-                        try:
-                            resp = requests.post(webhook_url, json=combined, timeout=15)
-                            if resp.status_code == 200:
-                                self.logger.info(f"Sent product to webhook: {data.get('url')}")
-                            else:
-                                self.logger.error(f"Webhook error for {data.get('url')}: {resp.status_code} {resp.text}")
-                        except Exception as e:
-                            self.logger.error(f"Failed to send product to webhook: {e}")
+            
+            for i in range(0, len(product_elements), batch_size):
+                batch = product_elements[i:i + batch_size]
+                self.logger.info(f"Processing batch {i//batch_size + 1}/{(len(product_elements) + batch_size - 1)//batch_size} ({len(batch)} products)")
+                
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future_to_element = {executor.submit(scrape_product, el): el for el in batch}
+                    for future in as_completed(future_to_element):
+                        data = future.result()
+                        if data:
+                            results.append(data)
+                            # Combine fields for webhook
+                            combined = dict(data)
+                            combined['instagram'] = self.combine_fields(data.get('ph_instagram'), data.get('site_instagram'))
+                            combined['linkedin_company'] = self.combine_fields(data.get('ph_linkedin_company'), data.get('site_linkedin_company'))
+                            combined['linkedin_personal'] = self.combine_fields(data.get('ph_linkedin_personal'), data.get('site_linkedin_personal'))
+                            combined['x'] = self.combine_fields(data.get('ph_x'), data.get('site_x'))
+                            combined['facebook'] = self.combine_fields(data.get('ph_facebook'), data.get('site_facebook'))
+                            combined['email'] = self.combine_fields(data.get('ph_email'), data.get('site_email'))
+                            # Send to webhook
+                            try:
+                                resp = requests.post(webhook_url, json=combined, timeout=15)
+                                if resp.status_code == 200:
+                                    self.logger.info(f"Sent product to webhook: {data.get('url')}")
+                                else:
+                                    self.logger.warning(f"Webhook failed for {data.get('url')}: {resp.status_code}")
+                            except Exception as e:
+                                self.logger.warning(f"Webhook error for {data.get('url')}: {e}")
+                            # Add to existing products for CSV
+                            existing_products.append(combined)
+                
+                # Memory cleanup between batches
+                self.logger.info(f"Completed batch {i//batch_size + 1}, processed {len(results)} total products")
+                time.sleep(2)  # Brief pause between batches
+            
             self.products = existing_products + results
             self.logger.info(f"Successfully processed {len(self.products)} products (webhook mode)")
             return self.products
@@ -202,31 +226,50 @@ class ProductHuntScraper:
             raise
     
     def _scroll_to_load_all_products(self):
-        """Scroll down to load all products via infinite scroll"""
+        """Scroll down to load all products via infinite scroll - optimized for server environments"""
         self.logger.info("Scrolling to load all products...")
         last_height = self.driver.execute_script("return document.body.scrollHeight")
         scroll_attempts = 0
-        max_attempts = 10
+        max_attempts = 15  # Increased for server environments
+        products_before = 0
         
         while scroll_attempts < max_attempts:
-            # Scroll down
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)  # Wait for content to load
-            
-            # Calculate new scroll height
-            new_height = self.driver.execute_script("return document.body.scrollHeight")
-            
-            if new_height == last_height:
+            try:
+                # Scroll down in smaller increments for server environments
+                current_height = self.driver.execute_script("return window.pageYOffset")
+                self.driver.execute_script(f"window.scrollTo(0, {current_height + 800});")
+                time.sleep(3)  # Longer wait for server environments
+                
+                # Calculate new scroll height
+                new_height = self.driver.execute_script("return document.body.scrollHeight")
+                
+                # Check current product count
+                product_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-test^='post-item-']")
+                current_products = len(product_elements)
+                
+                self.logger.info(f"Scroll attempt {scroll_attempts + 1}: {current_products} products loaded")
+                
+                # If no new products loaded and no height change, increment attempts
+                if new_height == last_height and current_products == products_before:
+                    scroll_attempts += 1
+                else:
+                    scroll_attempts = 0
+                    last_height = new_height
+                    products_before = current_products
+                
+                # Stop if we've loaded enough products or hit max attempts
+                if current_products > 200:  # Increased limit for server
+                    self.logger.info(f"Loaded {current_products} products, stopping scroll")
+                    break
+                    
+                # Memory management: clear some elements periodically
+                if scroll_attempts % 5 == 0:
+                    self.driver.execute_script("window.gc();")  # Force garbage collection
+                    
+            except Exception as e:
+                self.logger.warning(f"Error during scroll attempt {scroll_attempts + 1}: {e}")
                 scroll_attempts += 1
-            else:
-                scroll_attempts = 0
-                last_height = new_height
-            
-            # Check if we've loaded enough products (typically 50-100 products per day)
-            product_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-test^='post-item-']")
-            if len(product_elements) > 100:
-                self.logger.info(f"Loaded {len(product_elements)} products, stopping scroll")
-                break
+                time.sleep(2)
         
         self.logger.info("Finished scrolling")
     
