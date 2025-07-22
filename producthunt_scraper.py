@@ -128,6 +128,9 @@ class ProductHuntScraper:
             except Exception as e:
                 self.logger.info("'See all of today's products' button not found or already expanded.")
             
+            # Scroll to load all products via infinite scroll
+            self._scroll_to_load_all_products()
+            
             # Use the new selector for product listings
             product_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-test^='post-item-']")
             self.logger.info(f"Found {len(product_elements)} product elements with new selector.")
@@ -220,7 +223,7 @@ class ProductHuntScraper:
                 last_height = new_height
             
             # Check if we've loaded enough products (typically 50-100 products per day)
-            product_elements = self.driver.find_elements(By.CSS_SELECTOR, "[data-test='post-item']")
+            product_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-test^='post-item-']")
             if len(product_elements) > 100:
                 self.logger.info(f"Loaded {len(product_elements)} products, stopping scroll")
                 break
