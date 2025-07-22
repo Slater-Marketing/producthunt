@@ -1,119 +1,96 @@
 #!/usr/bin/env python3
-"""
-Debug script to analyze ProductHunt page structure
-This helps identify the correct selectors for scraping.
-"""
-
+import undetected_chromedriver as uc
 import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import random
 
-def analyze_producthunt_page():
-    """Analyze ProductHunt page structure"""
-    print("Analyzing ProductHunt page structure...")
+def test_proxy_and_page():
+    """Test proxy connection and check ProductHunt page content"""
     
-    # Setup Chrome driver
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    # DECODO Proxy configuration
+    proxy_config = {
+        'host': 'gate.decodo.com',
+        'port': '10001',
+        'username': 'spggrg8ytx',
+        'password': 'g10LCwaeg3~Vex0eoU'
+    }
+    
+    proxy_url = f"http://{proxy_config['username']}:{proxy_config['password']}@{proxy_config['host']}:{proxy_config['port']}"
+    
+    print(f"Testing proxy: {proxy_config['host']}:{proxy_config['port']}")
+    
+    chrome_options = uc.ChromeOptions()
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+    chrome_options.add_argument(f'--proxy-server={proxy_url}')
     
     driver = None
     try:
-        driver = webdriver.Chrome(options=chrome_options)
+        print("Initializing Chrome WebDriver...")
+        driver = uc.Chrome(options=chrome_options, headless=True)
         
-        # Load ProductHunt homepage
-        print("Loading ProductHunt homepage...")
-        driver.get("https://www.producthunt.com/")
+        # Test proxy by checking IP
+        print("Testing proxy connection...")
+        driver.get('https://api.ipify.org?format=text')
+        time.sleep(3)
+        ip = driver.page_source.strip()
+        print(f"Current IP: {ip}")
         
-        # Wait for page to load
-        time.sleep(5)
+        # Test ProductHunt
+        print("Loading ProductHunt...")
+        driver.get('https://www.producthunt.com')
+        time.sleep(10)  # Wait longer for page to load
         
         print(f"Page title: {driver.title}")
         print(f"Page URL: {driver.current_url}")
         
-        # Check if we're on the right page
-        if "Product Hunt" not in driver.title:
-            print("⚠️  Warning: Page title doesn't contain 'Product Hunt'")
+        # Check if we're being blocked
+        if "just a moment" in driver.title.lower() or "cloudflare" in driver.page_source.lower():
+            print("⚠️  WARNING: Page appears to be blocked by Cloudflare")
         
-        # Analyze page structure
-        print("\nAnalyzing page structure...")
+        # Look for any product-related elements
+        print("\nSearching for product elements...")
         
-        # Look for common product selectors
-        selectors_to_check = [
-            "[data-test='post-item']",
-            "[data-test='post']",
-            ".post-item",
-            ".post",
-            "[class*='post']",
-            "[class*='item']",
-            "[class*='product']",
-            "[class*='card']",
-            "article",
-            ".feed-item",
-            "[data-test*='post']",
-            "[data-test*='item']"
+        # Try different selectors
+        selectors_to_try = [
+            "section[data-test^='post-item-']",
+            "[data-test*='post-item']",
+            "section[class*='post']",
+            "div[class*='post']",
+            "a[href*='/products/']",
+            "section[class*='group']",
+            "div[class*='group']"
         ]
         
-        for selector in selectors_to_check:
-            try:
-                elements = driver.find_elements(By.CSS_SELECTOR, selector)
-                if elements:
-                    print(f"✓ Found {len(elements)} elements with selector: {selector}")
-                    if len(elements) > 0:
-                        # Show some details about the first element
-                        first_element = elements[0]
-                        print(f"  First element text preview: {first_element.text[:100]}...")
-                        print(f"  First element classes: {first_element.get_attribute('class')}")
-                else:
-                    print(f"✗ No elements found with selector: {selector}")
-            except Exception as e:
-                print(f"✗ Error checking selector {selector}: {e}")
+        for selector in selectors_to_try:
+            elements = driver.find_elements("css selector", selector)
+            print(f"Selector '{selector}': Found {len(elements)} elements")
+            if elements:
+                print(f"  First element text: {elements[0].text[:100]}...")
         
-        # Look for any elements that might contain product information
-        print("\nLooking for potential product containers...")
+        # Check for the "See all of today's products" button
+        try:
+            button = driver.find_element("css selector", "span:contains('See all of today')")
+            print("✅ Found 'See all of today's products' button")
+        except:
+            print("❌ 'See all of today's products' button not found")
         
-        # Check for elements with product-related text
-        body_text = driver.find_element(By.TAG_NAME, "body").text
-        if "Product Hunt" in body_text:
-            print("✓ Found 'Product Hunt' text in page")
-        
-        # Look for common product-related words
-        product_keywords = ["upvote", "vote", "product", "launch", "maker", "tagline"]
-        for keyword in product_keywords:
-            if keyword.lower() in body_text.lower():
-                print(f"✓ Found '{keyword}' in page content")
-        
-        # Take a screenshot for visual analysis
-        screenshot_path = "producthunt_debug_screenshot.png"
-        driver.save_screenshot(screenshot_path)
-        print(f"\nScreenshot saved as: {screenshot_path}")
-        
-        # Save page source for analysis
-        with open("producthunt_page_source.html", "w", encoding="utf-8") as f:
+        # Save page source for debugging
+        with open('debug_page_source.html', 'w', encoding='utf-8') as f:
             f.write(driver.page_source)
-        print("Page source saved as: producthunt_page_source.html")
+        print("Page source saved to debug_page_source.html")
         
-        # Check for any JavaScript errors or console messages
-        console_logs = driver.get_log('browser')
-        if console_logs:
-            print(f"\nBrowser console logs ({len(console_logs)} entries):")
-            for log in console_logs[:5]:  # Show first 5 logs
-                print(f"  {log}")
-        
-        print("\nAnalysis complete!")
+        # Take screenshot
+        driver.save_screenshot('debug_screenshot.png')
+        print("Screenshot saved to debug_screenshot.png")
         
     except Exception as e:
-        print(f"Error during analysis: {e}")
+        print(f"Error: {e}")
     finally:
         if driver:
             driver.quit()
 
 if __name__ == "__main__":
-    analyze_producthunt_page() 
+    test_proxy_and_page() 
