@@ -25,6 +25,8 @@ class ProductHuntScraper:
         self.base_url = "https://www.producthunt.com"
         self.today_url = self.base_url  # Use homepage for today's products
         self.products = []
+        self.request_count = 0
+        self.last_request_time = 0
         self.setup_logging()
         self.setup_driver(headless)
     
@@ -69,6 +71,26 @@ class ProductHuntScraper:
         except Exception as e:
             self.logger.error(f"Failed to initialize undetected Chrome WebDriver: {e}")
             raise
+    
+    def rate_limit_delay(self):
+        """Add rate limiting delay between requests"""
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        
+        # Ensure minimum 2 seconds between requests
+        min_delay = 2
+        if time_since_last < min_delay:
+            sleep_time = min_delay - time_since_last
+            time.sleep(sleep_time)
+        
+        self.last_request_time = time.time()
+        self.request_count += 1
+        
+        # Add exponential backoff every 10 requests
+        if self.request_count % 10 == 0:
+            backoff_time = min(30, 2 ** (self.request_count // 10))  # Max 30 seconds
+            self.logger.info(f"Rate limiting: waiting {backoff_time} seconds after {self.request_count} requests")
+            time.sleep(backoff_time)
     
     def clean_url(self, url):
         """Remove ?ref=producthunt and similar tracking params from a URL."""
@@ -119,6 +141,7 @@ class ProductHuntScraper:
             max_retries = 3
             for attempt in range(max_retries):
                 try:
+                    self.rate_limit_delay()
                     self.driver.get(self.today_url)
                     self.logger.info(f"Page loaded successfully (attempt {attempt + 1})")
                     break
@@ -128,7 +151,7 @@ class ProductHuntScraper:
                         raise
                     time.sleep(2)
             
-            time.sleep(3)  # Give page time to load
+            time.sleep(5)  # Longer wait for page to load
             self.logger.info(f"Page title: {self.driver.title}")
             
             # Click the 'See all of today's products' button if present
@@ -215,7 +238,7 @@ class ProductHuntScraper:
                 
                 # Memory cleanup between batches
                 self.logger.info(f"Completed batch {i//batch_size + 1}, processed {len(results)} total products")
-                time.sleep(2)  # Brief pause between batches
+                time.sleep(10)  # Longer pause between batches to avoid rate limiting
             
             self.products = existing_products + results
             self.logger.info(f"Successfully processed {len(self.products)} products (webhook mode)")
@@ -238,7 +261,7 @@ class ProductHuntScraper:
                 # Scroll down in smaller increments for server environments
                 current_height = self.driver.execute_script("return window.pageYOffset")
                 self.driver.execute_script(f"window.scrollTo(0, {current_height + 800});")
-                time.sleep(3)  # Longer wait for server environments
+                time.sleep(5)  # Longer wait for server environments and rate limiting
                 
                 # Calculate new scroll height
                 new_height = self.driver.execute_script("return document.body.scrollHeight")
@@ -361,7 +384,7 @@ class ProductHuntScraper:
             try:
                 driver = uc.Chrome(options=chrome_options, headless=True)
                 driver.get(product_url)
-                time.sleep(random.uniform(3, 8))  # Random delay
+                time.sleep(random.uniform(5, 15))  # Longer random delay to avoid rate limiting
                 # Website URL
                 try:
                     website_btn = WebDriverWait(driver, 5).until(
@@ -430,7 +453,7 @@ class ProductHuntScraper:
             try:
                 driver = uc.Chrome(options=chrome_options, headless=True)
                 driver.get(website_url)
-                time.sleep(random.uniform(3, 8))  # Random delay
+                time.sleep(random.uniform(5, 15))  # Longer random delay to avoid rate limiting
                 all_links = driver.find_elements(By.CSS_SELECTOR, "a[href]")
                 for a in all_links:
                     href = a.get_attribute("href")
