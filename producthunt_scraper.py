@@ -27,6 +27,14 @@ class ProductHuntScraper:
         self.products = []
         self.setup_logging()
         self.setup_driver(headless)
+        
+        # DECODO Proxy configuration
+        self.proxy_config = {
+            'host': 'gate.decodo.com',
+            'port': '10001',  # Use single port, DECODO handles rotation
+            'username': 'spggrg8ytx',
+            'password': 'g10LCwaeg3~Vex0eoU'
+        }
     
     def setup_logging(self):
         """Setup logging configuration"""
@@ -40,10 +48,14 @@ class ProductHuntScraper:
         )
         self.logger = logging.getLogger(__name__)
     
+    def get_proxy_url(self):
+        """Get the DECODO proxy URL - they handle rotation internally"""
+        proxy_url = f"http://{self.proxy_config['username']}:{self.proxy_config['password']}@{self.proxy_config['host']}:{self.proxy_config['port']}"
+        return proxy_url
+    
     def setup_driver(self, headless=True):
         """Setup Chrome WebDriver with appropriate options using undetected-chromedriver"""
         chrome_options = uc.ChromeOptions()
-        chrome_options.binary_location = '/usr/bin/chromium-browser'
         if headless:
             chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--no-sandbox")
@@ -51,9 +63,14 @@ class ProductHuntScraper:
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        
+        # Add proxy
+        proxy_url = self.get_proxy_url()
+        chrome_options.add_argument(f'--proxy-server={proxy_url}')
+        
         try:
             self.driver = uc.Chrome(options=chrome_options, headless=headless)
-            self.logger.info("Undetected Chrome WebDriver initialized successfully")
+            self.logger.info("Undetected Chrome WebDriver initialized successfully with proxy")
         except Exception as e:
             self.logger.error(f"Failed to initialize undetected Chrome WebDriver: {e}")
             raise
@@ -307,17 +324,21 @@ class ProductHuntScraper:
         ]
         try:
             chrome_options = uc.ChromeOptions()
-            chrome_options.binary_location = '/usr/bin/chromium-browser'
             chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+            
+            # Add proxy for this session
+            proxy_url = self.get_proxy_url()
+            chrome_options.add_argument(f'--proxy-server={proxy_url}')
+            
             driver = None
             try:
                 driver = uc.Chrome(options=chrome_options, headless=True)
                 driver.get(product_url)
-                time.sleep(random.uniform(3, 8))
+                time.sleep(random.uniform(10, 20))  # Longer delay with proxy
                 # Website URL
                 try:
                     website_btn = WebDriverWait(driver, 5).until(
@@ -376,17 +397,21 @@ class ProductHuntScraper:
         ]
         try:
             chrome_options = uc.ChromeOptions()
-            chrome_options.binary_location = '/usr/bin/chromium-browser'
             chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+            
+            # Add proxy for this session
+            proxy_url = self.get_proxy_url()
+            chrome_options.add_argument(f'--proxy-server={proxy_url}')
+            
             driver = None
             try:
                 driver = uc.Chrome(options=chrome_options, headless=True)
                 driver.get(website_url)
-                time.sleep(random.uniform(3, 8))
+                time.sleep(random.uniform(10, 20))  # Longer delay with proxy
                 all_links = driver.find_elements(By.CSS_SELECTOR, "a[href]")
                 for a in all_links:
                     href = a.get_attribute("href")
